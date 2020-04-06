@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <meta charset="utf-8" />
+      <title>Path Prediction</title>
+      <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+      <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v1.7.0/mapbox-gl.css">
+      <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css">
+      <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.0.9/mapbox-gl-draw.css" type="text/css"/>
+      <link rel="stylesheet" href= "https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css"> 
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+      <script>window.jQuery || document.write('<script src="{{url_for('static', filename='jquery.js') }}">\x3C/script>')</script>
+      <script type=text/javascript> $SCRIPT_ROOT = {{ request.script_root|tojson|safe }};</script>
+      <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+      <script src="https://api.mapbox.com/mapbox-gl-js/v1.7.0/mapbox-gl.js"></script>
+      <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.0.9/mapbox-gl-draw.js"></script>
+      <script src="https://api.tiles.mapbox.com/mapbox.js/plugins/turf/v3.0.11/turf.min.js"></script>
+      <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+      <script src="https://unpkg.com/three@0.106.2/build/three.min.js"></script>
+      <script src="https://unpkg.com/three@0.106.2/examples/js/loaders/GLTFLoader.js"></script>
+      <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .calculation-box {
+        height: 400px;
+        width: 370px;
+        position: absolute;
+        bottom: 40px;
+        left: 10px;
+        background-color: rgba(255, 255, 255, 0.9);
+        padding: 2px;
+        text-align: center;
+        }
+        p {
+        font-family: 'Calibri';
+        margin: 0;
+        font-size: 12px;
+        }
+        .nav-item{
+            font-size: 12px;
+        }
+
+        .form-inline > * {
+        margin:-4px 2px;
+        
+        }
+        button { margin: 0px 5px 5px 5px }
+        .form-group {
+        font-size: 12px;}
+
+        .labelx {
+        font-size: 13px;}
+
+        #menu {
+        background: #fff;
+        position: absolute;
+        z-index: 1;
+        top: 10px;
+        left: 10px;
+        border-radius: 3px;
+        width: 120px;
+        border: 1px solid rgba(0, 0, 0, 0.4);
+        font-family: 'Open Sans', sans-serif;
+        }
+        
+        #menu a {
+        font-size: 13px;
+        color: #404040;
+        display: block;
+        margin: 0;
+        padding: 0;
+        padding: 10px;
+        text-decoration: none;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+        text-align: center;
+        }
+        
+        #menu a:last-child {
+        border: none;
+        }
+        
+        #menu a:hover {
+        background-color: #f8f8f8;
+        color: #404040;
+        }
+        
+        #menu a.active {
+        background-color: #3887be;
+        color: #ffffff;
+        }
+        
+        #menu a.active:hover {
+        background: #3074a4;
+        }
+    </style>
+   </head>
+
+   
+   <body>
+      <div id="map"></div>
+      <nav id="menu"></nav>
+      <div class="calculation-box">
+            <div class="container">
+              <!-- Nav tabs -->
+              <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item">
+                  <a class="nav-link active" data-toggle="tab" href="#prediction">Path Prd</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" data-toggle="tab" href="#menu1">Data Src</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" data-toggle="tab" href="#menu2">Collision Dtc</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-toggle="tab" href="#menu3">ASV</a>
+                  </li>
+              </ul>
+            
+              <!-- Tab panes -->
+              <div class="tab-content">
+                <div id="prediction" class="container tab-pane active"><br>
+                    <form>
+                        <div class="form-group form-inline justify-content-center">
+                           <label for="exampleFormControlInput1">Lat:</label>
+                           <input class="form-control form-control-sm w-25" name="lat" id="lat" placeholder="Latitude">
+                           <label for="exampleFormControlInput2">Lon:</label>
+                           <input class="form-control form-control-sm w-25" name="lon" id="lon" placeholder="Longitude">
+                        </div>
+                        <div class="border-top my-3"></div>
+                        <div class="form-group form-inline justify-content-center">
+                           <label for="exampleFormControlInput3">Interval (s):</label>
+                           <input class="form-control form-control-sm w-25" name="interval" id="interval" value="2">
+                           <label for="exampleFormControlInput4">Points:</label>
+                           <input class="form-control form-control-sm w-25" name="pointnum" id="pointnum" value="60">
+                        </div>
+                        <div class="border-top my-3"></div>
+                        <div class="form-group form-inline justify-content-center">
+                           <label for="exampleFormControlInput3">Rad-glob (m):</label>
+                           <input class="form-control form-control-sm w-25" name="radglob" id="radglob" value="10000">
+                           <label for="exampleFormControlInput4">Rad-loc (m):</label>
+                           <input class="form-control form-control-sm w-25" name="radloc" id="radloc" value="250">
+                        </div>
+                        <div class="form-group form-inline justify-content-center">
+                           <label for="exampleFormControlInput5">SOG-tol (kt):</label>
+                           <input class="form-control form-control-sm w-25" name="sogtol" id="sogtol" value="5">
+                           <label for="exampleFormControlInput6">COG-tol (°):</label>
+                           <input class="form-control form-control-sm w-25" name="cogtol" id="cogtol" value="5">
+                        </div>
+                        <div class="border-top my-3"></div>
+                        <div class="form-check form-check-inline">
+                           <input class="form-check-input" name = "spnsm" type="checkbox" id="SPNSM" value="SPNSM">
+                           <label class="form-check-label" for="inlineCheckbox1"><span class="badge badge-success">SPNSM</span>
+                           </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                           <input class="form-check-input" name = "cvm" type="checkbox" id="inlineCheckbox2" value="CVM+">
+                           <label class="form-check-label" for="inlineCheckbox2"><span class="badge badge-warning">CVM+</span>
+                           </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                           <input class="form-check-input" type="checkbox" id="inlineCheckbox3" value="MTEM" disabled>
+                           <label class="form-check-label" for="inlineCheckbox3"><span class="badge badge-Danger">MTEM</span>
+                           </label>
+                        </div>
+                        <div class="border-top my-3"></div>
+                        <div>
+                           <button type="button" href=# id=calculate class="btn btn-primary mr-1">Calculate</button>
+                        </div>
+                     </form>
+                </div>
+
+                <div id="menu1" class="container tab-pane fade"><br>  
+                    <label class = "labelx" for="form-control-sm">Data Source :</label>   
+                    <select class="form-control-sm" id="boxval"name=radio_1>
+                        <option>Shipfinder-Live</option>
+                        <option>Norwegian-Live</option>
+                        <option>Historical</option>
+                      </select>  
+                      <div class="border-top my-3"></div>
+                      <label for="my_slider">Time</label>
+                      <br> 
+                      <div id="my_slider"></div> 
+                      <div id=my_display></div> 
+                      <script> 
+                          $(document).ready(function() { 
+                            $(function() {
+                                $("#my_slider").slider({
+                                    min: 0,
+                                    max: 1440,
+                                    step: 1,
+                                    slide: function(e, ui) {
+                                        var hours = Math.floor(ui.value / 60);
+                                        var minutes = ui.value - (hours * 60);
+
+                                        if(hours.toString().length == 1) hours = '0' + hours;
+                                        if(minutes.toString().length == 1) minutes = '0' + minutes;
+
+                                        $('#my_display').html(hours+':'+minutes);
+                                        $.getJSON($SCRIPT_ROOT + '/_gethist', {
+                                            time: $('#my_slider').slider("option", "value")
+                                        }, function(data1) {
+                                            //$("#result").text(data1);
+                                            map.getSource('boat').setData(data1);
+                                        });
+                                    }
+                                });
+                            });
+
+                          }) 
+                      </script> 
+                      <div class="border-top my-3"></div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="inlineCheckbox3" value="Hist" enabled>
+                        <label class="form-check-label" for="inlineCheckbox3"><span>Show historical path</span>
+                        </label>
+                     </div>                     
+                    </div>
+
+                <div id="menu2" class="container tab-pane fade"><br>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="inlineCheckbox3" value="3D" enabled>
+                        <label class="form-check-label" for="inlineCheckbox3"><span>3D Predicted Mesh</span>
+                        </label>
+                     </div>
+                     <div class="border-top my-3"></div>
+                     <div class="form-group form-inline justify-content-center">
+                        <label for="exampleFormControlInput7">Y-Buff(m):</label>
+                        <input class="form-control form-control-sm w-25" name="ybuf" id="ybuf" value="100">
+                        <label for="exampleFormControlInput8">Time-Buff(s):</label>
+                        <input class="form-control form-control-sm w-25" name="tbuf" id="tbuf" value="60">
+                     </div>
+
+                </div>
+
+                <div id="menu3" class="container tab-pane fade"><br>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="inlineCheckbox3" value="ASV" enabled>
+                        <label class="form-check-label" for="inlineCheckbox3"><span>Predict ASV</span>
+                        </label>
+                     </div>
+                     <div class="border-top my-3"></div>
+                     <div class="form-group form-inline justify-content-center">
+                        <label for="exampleFormControlInput7">ASV Speed(kts):</label>
+                        <input class="form-control form-control-sm w-25" name="asvspd" id="asvspd" value="10">
+                     </div>
+
+                </div>
+              </div>
+      </div>
+
+
+
+
+      <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoibTIxNDEyMzIxMSIsImEiOiJjazJ5cGF3engwOW9vM21vbTI5cWV1bjU5In0.JmwtHNgAmFE6robx_Pwnww';
+        var map = (window.map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/m214123211/ck8g519on43ed1invepe9b1di',
+        zoom: 10,
+        center: [7.025278, 57.5548245],
+        pitch: 60,
+        antialias: true // create the gl context with MSAA antialiasing, so custom layers are antialiased
+    }));
+
+        var url = "/Shipfinder-Live"
+        var geojson;
+
+        //JQuery get URL of Source from Selection Box
+        $('#boxval').on('change',function(){
+        var url = $('#boxval').val();
+        map.getSource('boat').setData(url);
+        map.moveLayer("boat"); 
+        });
+        
+        map.on('load', function() {
+       //     window.setInterval(function() {
+       //         map.getSource('boat').setData(url);
+       //         map.moveLayer("boat");
+       //     }, 1000);
+
+            map.addSource('boat', {
+                type: 'geojson',
+                data: url
+            });
+
+
+
+            map.addSource('historical', {
+                type: 'raster',
+                tiles: ['/{z}/{x}/{y}.png'],
+                tileSize: 256
+            });
+
+            
+
+            map.addLayer({
+                'id': 'historical',
+                'type': 'raster',
+                'source': 'historical',
+                'minzoom': 1,
+                'maxzoom': 14,
+                'layout': {
+                    'visibility': 'visible'
+                }
+            });
+
+            map.addLayer({
+                'id': 'boat',
+                'type': 'circle',
+                'source': 'boat',
+                'paint': {
+                    'circle-radius': {
+                        'base': 5,
+                        'stops': [
+                            [10, 5],
+                            [22, 5]
+                        ]
+                    },
+                    'circle-color': [
+                        'match',
+                        ['get', 'shiptype'],
+                        '0',
+                        '#fbb03b',
+                        '79',
+                        '#223b53',
+                        '130',
+                        '#e55e5e',
+                        '50',
+                        '#3bb2d0',
+                        /* other */
+                        '#403c3b'
+                    ]
+                }
+            });
+
+            //Show info about Each boat
+            map.on('click', 'boat', function(e) {
+                var coordinates = e.features[0].geometry.coordinates.slice();
+                var description = e.features[0].properties;
+                var mmsi = description.mmsi.toString();
+                var cog = parseFloat(description.cog.toString()) / 10;
+                var sog = parseFloat(description.sog.toString()) / 100;
+
+                // Ensure that if the map is zoomed out such that multiple
+                // copies of the feature are visible, the popup appears
+                // over the copy being pointed to.
+                while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+                    coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+                }
+
+                new mapboxgl.Popup()
+                    .setLngLat(coordinates)
+                    .setHTML('mmsi : ' + mmsi +
+                        "<br>" + 'cog : ' + cog + "</br>" +
+                        'sog : ' + sog)
+                    .addTo(map);
+            });
+
+            var draw = new MapboxDraw({
+                displayControlsDefault: false,
+                controls: {
+                    //point: true,
+                    line_string: true,
+                    trash: true
+                },
+
+                styles: [
+                    // ACTIVE (being drawn)
+                    // line stroke
+                    {
+                        "id": "gl-draw-line",
+                        "type": "line",
+                        "filter": ["all", ["==", "$type", "LineString"], ["!=", "mode", "static"]],
+                        "layout": {
+                        "line-cap": "round",
+                        "line-join": "round"
+                        },
+                        "paint": {
+                        "line-color": "#ff8d00",
+                        "line-width": 3
+                        }
+                    }
+                ]
+            });
+
+            
+
+            
+
+            map.addControl(draw);
+            map.addControl(new mapboxgl.ScaleControl({maxWidth: 200}), 'bottom-right');
+     
+
+
+
+            map.on('draw.create', updateArea);
+            map.on('draw.delete', updateArea);
+            map.on('draw.update', updateArea);
+            
+            //Fills OUT HTML BOX   
+            function updateArea(e) {
+                var data = draw.getAll();
+                geojson = data
+                //split draw in lat - lon
+                var lat = JSON.stringify(data.features.slice(-1)[0].geometry.coordinates[1]);
+                var lon = JSON.stringify(data.features.slice(-1)[0].geometry.coordinates[0]);
+                // restrict to latitude to 2 decimal points
+                var lat_1 = Math.round(lat * 1000000) / 1000000;
+                var lon_1 = Math.round(lon * 1000000) / 1000000;
+                document.getElementById('lat').value = lat_1;
+                document.getElementById('lon').value = lon_1;
+            }
+
+            
+            //JQUERY
+
+            $(function() {
+                $('button#view').bind('click', function() {
+                    $.getJSON($SCRIPT_ROOT + '/_gethist', {
+                        time: $('#my_slider').slider("option", "value")
+                    }, function(data1) {
+                        //$("#result").text(data1);
+                        map.getSource('boat').setData(data1);
+                    });
+                });
+            });
+                
+                     
+            $(function() {
+                $('button#calculate').bind('click', function() {
+                    if ($(('input[name="cvm"]')).is(':checked') == true) {
+                        $.post({
+                            type: 'POST',
+                            url: $SCRIPT_ROOT + '/_calc_cvm',
+                            data: JSON.stringify({
+                                geo: geojson,
+                                lat: $('input[name="lat"].form-control.form-control-sm.w-25').val(),
+                                lon: $('input[name="lon"].form-control.form-control-sm.w-25').val(),
+                                interval: $('input[name="interval"].form-control.form-control-sm.w-25').val(),
+                                pointnum: $('input[name="pointnum"].form-control.form-control-sm.w-25').val(),
+                                radglob: $('input[name="radglob"].form-control.form-control-sm.w-25').val(),
+                                radloc: $('input[name="radloc"].form-control.form-control-sm.w-25').val(),
+                                datasrc: $("#boxval option:selected").text(),
+                                time: $('#my_slider').slider("option", "value")
+                            }),
+                            contentType: 'application/json; charset=utf-8',
+                            dataType: 'json'
+                            }, function(data1) {
+                            var id1 = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+                            var id2 = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+                            //Add CVM Linestring
+                            map.addSource(id1, {
+                                type: "geojson",
+                                data: data1.geo
+                            });
+
+                            //Add Search Area
+                            map.addSource(id2, {
+                                type: "geojson",
+                                data: data1.area
+                            });
+    
+
+                            map.addLayer({
+                                "id": id1,
+                                "type": "line",
+                                "source": id1,
+                                'layout': {
+                                    'line-join': 'round',
+                                    'line-cap': 'round'
+                                },
+                                'paint': {
+                                    'line-color': '#fae500',
+                                    'line-width': 8
+                                }
+
+                            });
+
+                            map.addLayer({
+                                "id": id2,
+                                "type": "fill",
+                                "source": id2,
+                                'layout': {},
+                                'paint': {
+                                    'fill-color': '#85FF26',
+                                    'fill-opacity': 0.7
+                                }
+
+                            });
+
+                            ///////////////////////////Three JS ///////////////////////////////////
+                            var modelOrigin = [0, 0];
+                            var modelAltitude = 0;
+                            var modelRotate = [Math.PI / 2, 0, 0];
+
+                            var modelAsMercatorCoordinate = mapboxgl.MercatorCoordinate.fromLngLat(
+                                modelOrigin,
+                                modelAltitude
+                            );
+
+                            // transformation parameters to position, rotate and scale the 3D model onto the map
+                            var modelTransform = {
+                                translateX: modelAsMercatorCoordinate.x,
+                                translateY: modelAsMercatorCoordinate.y,
+                                translateZ: modelAsMercatorCoordinate.z,
+                                rotateX: modelRotate[0],
+                                rotateY: modelRotate[1],
+                                rotateZ: modelRotate[2],
+                                /* Since our 3D model is in real world meters, a scale transform needs to be
+                                * applied since the CustomLayerInterface expects units in MercatorCoordinates.
+                                */
+                                scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits()
+                            };
+
+                            var THREE = window.THREE;
+
+                            // configuration of the custom layer for a 3D model per the CustomLayerInterface
+                            var id3d = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+                            var customLayer = {
+                                id: id3d,
+                                type: 'custom',
+                                renderingMode: '3d',
+                                onAdd: function(map, gl) {
+                                    this.camera = new THREE.Camera();
+                                    this.scene = new THREE.Scene();
+
+                                    // create two three.js lights to illuminate the model
+                                    var directionalLight = new THREE.DirectionalLight(0xffffff);
+                                    directionalLight.position.set(0, -70, 100).normalize();
+                                    this.scene.add(directionalLight);
+
+                                    var directionalLight2 = new THREE.DirectionalLight(0xffffff);
+                                    directionalLight2.position.set(0, 70, 100).normalize();
+                                    this.scene.add(directionalLight2);
+
+                                    var directionalLight3 = new THREE.DirectionalLight(0xffffff);
+                                    directionalLight3.position.set(100, 20, -100).normalize();
+                                    this.scene.add(directionalLight3);
+
+
+                                    // use the three.js GLTF loader to add the 3D model to the three.js scene
+                                    var loader = new THREE.GLTFLoader();
+                                    loader.load(
+                                        '/model.glb',
+                                        function(gltf) {
+                                            this.scene.add(gltf.scene);
+                                        }.bind(this)
+                                    );
+                                    this.map = map;
+
+                                    // use the Mapbox GL JS map canvas for three.js
+                                    this.renderer = new THREE.WebGLRenderer({
+                                        canvas: map.getCanvas(),
+                                        context: gl,
+                                        antialias: true
+                                    });
+
+                                    this.renderer.autoClear = false;
+                                },
+                                render: function(gl, matrix) {
+                                    var rotationX = new THREE.Matrix4().makeRotationAxis(
+                                        new THREE.Vector3(1, 0, 0),
+                                        modelTransform.rotateX
+                                    );
+                                    var rotationY = new THREE.Matrix4().makeRotationAxis(
+                                        new THREE.Vector3(0, 1, 0),
+                                        modelTransform.rotateY
+                                    );
+                                    var rotationZ = new THREE.Matrix4().makeRotationAxis(
+                                        new THREE.Vector3(0, 0, 1),
+                                        modelTransform.rotateZ
+                                    );
+
+                                    var m = new THREE.Matrix4().fromArray(matrix);
+                                    var l = new THREE.Matrix4()
+                                        .makeTranslation(
+                                            modelTransform.translateX,
+                                            modelTransform.translateY,
+                                            modelTransform.translateZ
+                                        )
+                                        .scale(
+                                            new THREE.Vector3(
+                                                modelTransform.scale,
+                                                modelTransform.scale,
+                                                4*modelTransform.scale
+                                            )
+                                        )
+                                        .multiply(rotationX)
+                                        .multiply(rotationY)
+                                        .multiply(rotationZ);
+
+                                    this.camera.projectionMatrix = m.multiply(l);
+                                    this.renderer.state.reset();
+                                    this.renderer.render(this.scene, this.camera);
+                                    this.map.triggerRepaint();
+                                }
+                            };
+                    ///////////////////////////Three JS ///////////////////////////////////
+                            map.addLayer(customLayer);
+
+                            //move boat layer back to top
+                            map.moveLayer("boat");
+                        });
+                    };
+
+                    if ($(('input[name="spnsm"]')).is(':checked') == true) {
+                        $.getJSON($SCRIPT_ROOT + '/_calc_spnsm', {
+                            lat: $('input[name="lat"].form-control.form-control-sm.w-25').val(),
+                            lon: $('input[name="lon"].form-control.form-control-sm.w-25').val(),
+                            interval: $('input[name="interval"].form-control.form-control-sm.w-25').val(),
+                            pointnum: $('input[name="pointnum"].form-control.form-control-sm.w-25').val(),
+                            radglob: $('input[name="radglob"].form-control.form-control-sm.w-25').val(),
+                            radloc: $('input[name="radloc"].form-control.form-control-sm.w-25').val(),
+                            sogtol: $('input[name="sogtol"].form-control.form-control-sm.w-25').val(),
+                            cogtol: $('input[name="cogtol"].form-control.form-control-sm.w-25').val(),
+                            datasrc: $("#boxval option:selected").text(),
+                            time: $('#my_slider').slider("option", "value")
+                        }, function(data1) {
+                            var id1 = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+                            var id2 = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+                            //$("#result").text(data1);
+                            map.addSource(id1, {
+                                type: "geojson",
+                                data: data1
+                            });
+
+                            map.addLayer({
+                                "id": id2,
+                                "type": "line",
+                                "source": id1,
+                                'layout': {
+                                    'line-join': 'round',
+                                    'line-cap': 'round'
+                                },
+                                'paint': {
+                                    'line-color': '#888',
+                                    'line-width': 8
+                                }
+
+                            });
+
+                            ///////////////////////////Three JS ///////////////////////////////////
+                            var modelOrigin = [0, 0];
+                            var modelAltitude = 0;
+                            var modelRotate = [Math.PI / 2, 0, 0];
+
+                            var modelAsMercatorCoordinate = mapboxgl.MercatorCoordinate.fromLngLat(
+                                modelOrigin,
+                                modelAltitude
+                            );
+
+                            // transformation parameters to position, rotate and scale the 3D model onto the map
+                            var modelTransform = {
+                                translateX: modelAsMercatorCoordinate.x,
+                                translateY: modelAsMercatorCoordinate.y,
+                                translateZ: modelAsMercatorCoordinate.z,
+                                rotateX: modelRotate[0],
+                                rotateY: modelRotate[1],
+                                rotateZ: modelRotate[2],
+                                /* Since our 3D model is in real world meters, a scale transform needs to be
+                                * applied since the CustomLayerInterface expects units in MercatorCoordinates.
+                                */
+                                scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits()
+                            };
+
+                            var THREE = window.THREE;
+
+                            // configuration of the custom layer for a 3D model per the CustomLayerInterface
+                            var id3d = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+                            var customLayer = {
+                                id: id3d,
+                                type: 'custom',
+                                renderingMode: '3d',
+                                onAdd: function(map, gl) {
+                                    this.camera = new THREE.Camera();
+                                    this.scene = new THREE.Scene();
+
+                                    // create two three.js lights to illuminate the model
+                                    var directionalLight = new THREE.DirectionalLight(0xffffff);
+                                    directionalLight.position.set(0, -70, 100).normalize();
+                                    this.scene.add(directionalLight);
+
+                                    var directionalLight2 = new THREE.DirectionalLight(0xffffff);
+                                    directionalLight2.position.set(0, 70, 100).normalize();
+                                    this.scene.add(directionalLight2);
+
+                                    var directionalLight3 = new THREE.DirectionalLight(0xffffff);
+                                    directionalLight3.position.set(100, 20, -100).normalize();
+                                    this.scene.add(directionalLight3);
+
+
+                                    // use the three.js GLTF loader to add the 3D model to the three.js scene
+                                    var loader = new THREE.GLTFLoader();
+                                    loader.load(
+                                        '/model.glb',
+                                        function(gltf) {
+                                            this.scene.add(gltf.scene);
+                                        }.bind(this)
+                                    );
+                                    this.map = map;
+
+                                    // use the Mapbox GL JS map canvas for three.js
+                                    this.renderer = new THREE.WebGLRenderer({
+                                        canvas: map.getCanvas(),
+                                        context: gl,
+                                        antialias: true
+                                    });
+
+                                    this.renderer.autoClear = false;
+                                },
+                                render: function(gl, matrix) {
+                                    var rotationX = new THREE.Matrix4().makeRotationAxis(
+                                        new THREE.Vector3(1, 0, 0),
+                                        modelTransform.rotateX
+                                    );
+                                    var rotationY = new THREE.Matrix4().makeRotationAxis(
+                                        new THREE.Vector3(0, 1, 0),
+                                        modelTransform.rotateY
+                                    );
+                                    var rotationZ = new THREE.Matrix4().makeRotationAxis(
+                                        new THREE.Vector3(0, 0, 1),
+                                        modelTransform.rotateZ
+                                    );
+
+                                    var m = new THREE.Matrix4().fromArray(matrix);
+                                    var l = new THREE.Matrix4()
+                                        .makeTranslation(
+                                            modelTransform.translateX,
+                                            modelTransform.translateY,
+                                            modelTransform.translateZ
+                                        )
+                                        .scale(
+                                            new THREE.Vector3(
+                                                modelTransform.scale,
+                                                modelTransform.scale,
+                                                4*modelTransform.scale
+                                            )
+                                        )
+                                        .multiply(rotationX)
+                                        .multiply(rotationY)
+                                        .multiply(rotationZ);
+
+                                    this.camera.projectionMatrix = m.multiply(l);
+                                    this.renderer.state.reset();
+                                    this.renderer.render(this.scene, this.camera);
+                                    this.map.triggerRepaint();
+                                }
+                            };
+                        ///////////////////////////Three JS ///////////////////////////////////
+                            map.addLayer(customLayer);                            
+
+
+                            //move boat layer back to top
+                            map.moveLayer("boat");
+                        });
+                    };
+
+
+                    return false;
+                });
+            });
+           
+            var toggleableLayerIds = ['boat', 'historical', '3D Mesh'];
+            for (var i = 0; i < toggleableLayerIds.length; i++) {
+                var id = toggleableLayerIds[i];
+
+                var link = document.createElement('a');
+                link.href = '#';
+                link.className = 'active';
+                link.textContent = id;
+
+                link.onclick = function(e) {
+                    var clickedLayer = this.textContent;
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    var visibility = map.getLayoutProperty(clickedLayer, 'visibility');
+
+                    if (visibility === 'visible') {
+                        map.setLayoutProperty(clickedLayer, 'visibility', 'none');
+                        this.className = '';
+                    } else {
+                        this.className = 'active';
+                        map.setLayoutProperty(clickedLayer, 'visibility', 'visible');
+                    }
+                };
+
+                var layers = document.getElementById('menu');
+                layers.appendChild(link);
+            }
+        });
+
+
+      </script>
+      
+   </body>
+</html>
+
